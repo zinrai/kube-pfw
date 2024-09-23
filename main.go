@@ -57,17 +57,12 @@ func run() error {
 		return fmt.Errorf("service selection failed: %w", err)
 	}
 
-	selectedPort, err := selectPort(selectedService)
+	selectedPorts, err := selectPorts(selectedService)
 	if err != nil {
 		return fmt.Errorf("port selection failed: %w", err)
 	}
 
-	localPort, err := getLocalPort()
-	if err != nil {
-		return fmt.Errorf("local port input failed: %w", err)
-	}
-
-	if err := runPortForward(selectedService, selectedPort, localPort, namespace); err != nil {
+	if err := runPortForward(selectedService, selectedPorts, namespace); err != nil {
 		return fmt.Errorf("port-forward failed: %w", err)
 	}
 
@@ -107,9 +102,9 @@ func selectService(services []corev1.Service) (*corev1.Service, error) {
 	return &services[index-1], nil
 }
 
-func selectPort(service *corev1.Service) (int32, error) {
+func selectPorts(service *corev1.Service) ([]int32, error) {
 	if len(service.Spec.Ports) == 1 {
-		return service.Spec.Ports[0].Port, nil
+		return []int32{service.Spec.Ports[0].Port}, nil
 	}
 
 	fmt.Printf("* %s:\n", service.Name)
@@ -118,43 +113,43 @@ func selectPort(service *corev1.Service) (int32, error) {
 	}
 
 	reader := bufio.NewReader(os.Stdin)
-	fmt.Print("Enter the number: ")
+	fmt.Print("Enter the numbers (comma-separated) or 'all' for all ports: ")
 	input, err := reader.ReadString('\n')
 	if err != nil {
-		return 0, fmt.Errorf("failed to read input: %w", err)
+		return nil, fmt.Errorf("failed to read input: %w", err)
 	}
 
-	index, err := strconv.Atoi(strings.TrimSpace(input))
-	if err != nil || index < 1 || index > len(service.Spec.Ports) {
-		return 0, fmt.Errorf("invalid selection")
+	input = strings.TrimSpace(input)
+	if input == "all" {
+		var ports []int32
+		for _, port := range service.Spec.Ports {
+			ports = append(ports, port.Port)
+		}
+		return ports, nil
 	}
 
-	return service.Spec.Ports[index-1].Port, nil
+	selections := strings.Split(input, ",")
+	var selectedPorts []int32
+	for _, s := range selections {
+		index, err := strconv.Atoi(strings.TrimSpace(s))
+		if err != nil || index < 1 || index > len(service.Spec.Ports) {
+			return nil, fmt.Errorf("invalid selection: %s", s)
+		}
+		selectedPorts = append(selectedPorts, service.Spec.Ports[index-1].Port)
+	}
+
+	return selectedPorts, nil
 }
 
-func getLocalPort() (string, error) {
-	reader := bufio.NewReader(os.Stdin)
-	fmt.Print("* Local Port: ")
-	input, err := reader.ReadString('\n')
-	if err != nil {
-		return "", fmt.Errorf("failed to read input: %w", err)
+func runPortForward(service *corev1.Service, ports []int32, namespace string) error {
+	args := []string{"port-forward", fmt.Sprintf("service/%s", service.Name), "-n", namespace}
+	for _, port := range ports {
+		args = append(args, fmt.Sprintf("%d:%d", port, port))
 	}
 
-	localPort := strings.TrimSpace(input)
-	if _, err := strconv.Atoi(localPort); err != nil {
-		return "", fmt.Errorf("invalid port number")
-	}
-
-	return localPort, nil
-}
-
-func runPortForward(service *corev1.Service, remotePort int32, localPort, namespace string) error {
-	cmd := exec.Command("kubectl", "port-forward", fmt.Sprintf("service/%s", service.Name), fmt.Sprintf("%s:%d", localPort, remotePort), "-n", namespace)
-
+	cmd := exec.Command("kubectl", args...)
 	fmt.Printf("Exec Command: %s\n", cmd.String())
-
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
-
 	return cmd.Run()
 }

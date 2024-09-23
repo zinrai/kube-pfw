@@ -7,7 +7,7 @@
 - Lists all services in a specified namespace
 - Displays available ports for each service
 - Allows interactive selection of services and ports
-- Supports services with multiple ports
+- Supports forwarding multiple ports simultaneously
 - Executes `kubectl port-forward` command with selected options
 
 ## Installation
@@ -34,10 +34,9 @@ For example:
 
 Follow the interactive prompts to:
 1. Select a service
-2. Choose a port (if the service has multiple ports)
-3. Specify the local port to forward to
+2. Choose one or more ports (if the service has multiple ports)
 
-The tool will then execute the appropriate `kubectl port-forward` command.
+The tool will then execute the appropriate `kubectl port-forward` command, forwarding all selected ports.
 
 ## Examples
 
@@ -66,16 +65,17 @@ Enter the number: 2
   1. 80
   2. 8000
   3. 8001
-Enter the number: 2
-* Local Port: 8000
-Exec Command: /usr/local/bin/kubectl port-forward service/nginx-service1 8000:8000 -n default
-Forwarding from 127.0.0.1:8000 -> 80
-Forwarding from [::1]:8000 -> 80
+Enter the numbers (comma-separated) or 'all' for all ports: 2,3
+Exec Command: kubectl port-forward service/nginx-service1 8000:8000 8001:8001 -n default
+Forwarding from 127.0.0.1:8000 -> 8000
+Forwarding from [::1]:8000 -> 8000
+Forwarding from 127.0.0.1:8001 -> 8001
+Forwarding from [::1]:8001 -> 8001
 Handling connection for 8000
-^C
+Handling connection for 8001
 ```
 
-In this example, we selected `nginx-service1`, which has multiple ports. We then chose port 8000 and forwarded it to local port 8000.
+In this example, we selected `nginx-service1`, which has multiple ports. We then chose ports 8000 and 8001, and the tool forwarded both ports simultaneously.
 
 ### Service with a Single Port
 
@@ -88,14 +88,12 @@ $ ./kube-pfw default
   2. nginx-service1 ( port 80 , 8000 , 8001 )
   3. nginx-service2 ( port 8010 )
 Enter the number: 3
-* Local Port: 8010
-Exec Command: /usr/local/bin/kubectl port-forward service/nginx-service2 8010:8010 -n default
-Forwarding from 127.0.0.1:8010 -> 80
-Forwarding from [::1]:8010 -> 80
-^C
+Exec Command: kubectl port-forward service/nginx-service2 8010:8010 -n default
+Forwarding from 127.0.0.1:8010 -> 8010
+Forwarding from [::1]:8010 -> 8010
 ```
 
-In this example, we selected `nginx-service2`, which has only one port (8010). The tool automatically selected this port and prompted us for the local port to use.
+In this example, we selected `nginx-service2`, which has only one port (8010). The tool automatically selected this port and started the port forwarding.
 
 ## License
 
